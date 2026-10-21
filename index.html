@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光迹 — 双缝干涉交互模拟系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e27;
+            color: #e0e0e0;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            display: flex;
+            min-height: 100vh;
+        }
+        #control-panel {
+            width: 280px;
+            padding: 20px;
+            background: rgba(15, 20, 50, 0.95);
+            border-right: 1px solid rgba(100, 150, 255, 0.2);
+            flex-shrink: 0;
+        }
+        #control-panel h2 {
+            font-size: 18px;
+            color: #64b5f6;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(100, 150, 255, 0.3);
+            padding-bottom: 10px;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 13px;
+            color: #90caf9;
+            margin-bottom: 6px;
+        }
+        .control-group .value {
+            float: right;
+            color: #e0e0e0;
+            font-family: monospace;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            background: rgba(100, 150, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            background: #64b5f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(30, 40, 80, 0.8);
+            color: #e0e0e0;
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        canvas {
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        #formula-box {
+            background: rgba(20, 25, 60, 0.6);
+            border: 1px solid rgba(100, 150, 255, 0.15);
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+        #formula-box h3 {
+            color: #64b5f6;
+            margin-bottom: 8px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .info-row .label { color: #78909c; }
+        .info-row .val { color: #fff; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+<!-- 控制面板 -->
+<div id="control-panel">
+    <h2>⚙️ 参数控制</h2>
+
+    <div class="control-group">
+        <label>波长 λ (nm) <span class="value" id="val-wavelength">550</span></label>
+        <input type="range" id="wavelength" min="380" max="780" value="550" step="1">
+    </div>
+
+    <div class="control-group">
+        <label>缝间距 d (μm) <span class="value" id="val-slitspace">200</span></label>
+        <input type="range" id="slitspace" min="50" max="1000" value="200" step="5">
+    </div>
+
+    <div class="control-group">
+        <label>缝宽 a (μm) <span class="value" id="val-slitwidth">50</span></label>
+        <input type="range" id="slitwidth" min="10" max="200" value="50" step="1">
+    </div>
+
+    <div class="control-group">
+        <label>屏距 L (m) <span class="value" id="val-distance">1.0</span></label>
+        <input type="range" id="distance" min="0.2" max="3.0" value="1.0" step="0.1">
+    </div>
+
+    <div class="control-group">
+        <label>显示模式</label>
+        <select id="displayMode">
+            <option value="intensity">光强分布图</option>
+            <option value="wave">波动传播动画</option>
+            <option value="combined">干涉+光强组合</option>
+        </select>
+    </div>
+
+    <h2 style="font-size:14px; margin-top:30px;">📊 实时数据</h2>
+    <div class="info-row"><span class="label">条纹间距 Δy</span><span class="val" id="info-deltaY">—</span></div>
+    <div class="info-row"><span class="label">中央明纹宽度</span><span class="val" id="info-central">—</span></div>
+    <div class="info-row"><span class="label">可见条纹数</span><span class="val" id="info-count">—</span></div>
+    <div class="info-row"><span class="label">光色</span><span class="val" id="info-color">—</span></div>
+
+    <h2 style="font-size:14px; margin-top:30px;">📐 公式</h2>
+    <div id="formula-box">
+        <h3>干涉条件</h3>
+        <p>明纹：d·sinθ = kλ (k=0,±1,±2...)</p>
+        <p>暗纹：d·sinθ = (k+½)λ</p>
+        <h3 style="margin-top:10px;">条纹间距</h3>
+        <p>Δy = λL / d</p>
+    </div>
+</div>
+
+<!-- 画布区域 -->
+<div id="canvas-container">
+    <canvas id="mainCanvas" width="900" height="400"></canvas>
+    <canvas id="intensityCanvas" width="900" height="250"></canvas>
+</div>
+
+<script>
+// ===== 核心参数 =====
+const params = {
+    wavelength: 550,   // 波长 nm
+    slitspace: 200,    // 缝间距 μm
+    slitwidth: 50,     // 缝宽 μm
+    distance: 1.0,     // 屏距 m
+    mode: 'combined'   // 显示模式
+};
+
+// ===== DOM 元素 =====
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+const intCanvas = document.getElementById('intensityCanvas');
+const intCtx = intCanvas.getContext('2d');
+
+// ===== 波长转RGB颜色 =====
+function wavelengthToRGB(wl) {
+    let R, G, B;
+    if (wl >= 380 && wl < 440) {
+        R = -(wl - 440) / (440 - 380); G = 0; B = 1;
+    } else if (wl >= 440 && wl < 490) {
+        R = 0; G = (wl - 440) / (490 - 440); B = 1;
+    } else if (wl >= 490 && wl < 510) {
+        R = 0; G = 1; B = -(wl - 510) / (510 - 490);
+    } else if (wl >= 510 && wl < 580) {
+        R = (wl - 510) / (580 - 510); G = 1; B = 0;
+    } else if (wl >= 580 && wl < 645) {
+        R = 1; G = -(wl - 645) / (645 - 580); B = 0;
+    } else if (wl >= 645 && wl <= 780) {
+        R = 1; G = 0; B = 0;
+    } else {
+        R = 0; G = 0; B = 0;
+    }
+    const intensity = wl < 420 || wl > 700 ? 0.3 + 0.7 * (wl < 420 ? (wl-380)/40 : (780-wl)/80) : 1;
+    return {
+        r: Math.round(R * intensity * 255),
+        g: Math.round(G * intensity * 255),
+        b: Math.round(B * intensity * 255),
+        css: `rgb(${Math.round(R*intensity*255)},${Math.round(G*intensity*255)},${Math.round(B*intensity*255)})`
+    };
+}
+
+// ===== 物理计算 =====
+function calcIntensity(y, L, d, a, lambda) {
+    // y: 屏上位置(m), L:屏距(m), d:缝距(m), a:缝宽(m), lambda:波长(m)
+    const sinTheta = y / Math.sqrt(y * y + L * L);
+    // 干涉项
+    const delta = Math.PI * d * sinTheta / lambda;
+    const interference = Math.cos(delta) ** 2;
+    // 衍射包络
+    const alpha = Math.PI * a * sinTheta / lambda;
+    const diffraction = alpha === 0 ? 1 : (Math.sin(alpha) / alpha) ** 2;
+    return interference * diffraction;
+}
+
+// ===== 绘制主画布（光路示意图 + 干涉图样） =====
+function drawMain() {
+    const W = mainCanvas.width, H = mainCanvas.height;
+    mainCtx.clearRect(0, 0, W, H);
+
+    const color = wavelengthToRGB(params.wavelength);
+    const { r, g, b } = color;
+
+    // 参数转换
+    const lambda = params.wavelength * 1e-9;  // m
+    const d = params.slitspace * 1e-6;        // m
+    const a = params.slitwidth * 1e-6;        // m
+    const L = params.distance;                // m
+
+    // 光路示意图区域（左侧）
+    const diagramW = W * 0.35;
+    const diagramH = H;
+
+    // 绘制背景
+    mainCtx.fillStyle = 'rgba(10, 14, 39, 0.8)';
+    mainCtx.fillRect(0, 0, diagramW, H);
+
+    // 光源
+    mainCtx.beginPath();
+    mainCtx.arc(40, H/2, 15, 0, Math.PI * 2);
+    mainCtx.fillStyle = color.css;
+    mainCtx.fill();
+    mainCtx.shadowBlur = 20;
+    mainCtx.shadowColor = color.css;
+    mainCtx.fill();
+    mainCtx.shadowBlur = 0;
+
+    mainCtx.fillStyle = '#90caf9';
+    mainCtx.font = '12px sans-serif';
+    mainCtx.fillText('光源', 28, H/2 + 35);
+
+    // 光线
+    mainCtx.strokeStyle = `rgba(${r},${g},${b},0.3)`;
+    mainCtx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+        const angle = (i - 2) * 0.15;
+        mainCtx.beginPath();
+        mainCtx.moveTo(55, H/2);
+        mainCtx.lineTo(diagramW * 0.6, H/2 + Math.tan(angle) * diagramW * 0.6);
+        mainCtx.stroke();
+    }
+
+    // 双缝挡板
+    const slitX = diagramW * 0.65;
+    mainCtx.fillStyle = 'rgba(80, 90, 120, 0.8)';
+    mainCtx.fillRect(slitX - 5, 0, 10, H/2 - 30);
+    mainCtx.fillRect(slitX - 5, H/2 - 10, 10, 20); // 缝隙
+    mainCtx.fillRect(slitX - 5, H/2 + 30, 10, H);
+
+    mainCtx.fillStyle = '#90caf9';
+    mainCtx.fillText('双缝', slitX - 12, H/2 + 55);
+
+    // 缝间距标注
+    mainCtx.strokeStyle = '#ffab40';
+    mainCtx.lineWidth = 1;
+    mainCtx.setLineDash([3, 3]);
+    mainCtx.beginPath();
+    mainCtx.moveTo(slitX + 15, H/2 - 20);
+    mainCtx.lineTo(slitX + 15, H/2 + 20);
+    mainCtx.stroke();
+    mainCtx.setLineDash([]);
+    mainCtx.fillStyle = '#ffab40';
+    mainCtx.font = '11px monospace';
+    mainCtx.fillText('d', slitX + 20, H/2 + 4);
+
+    // 观察屏
+    const screenX = W * 0.95;
+    const gradient = mainCtx.createLinearGradient(0, 0, 0, H);
+    for (let py = 0; py < H; py++) {
+        const yPhysical = (py - H/2) * 0.001; // 映射到物理坐标
+        const I = calcIntensity(yPhysical, L, d, a, lambda);
+        const brightness = Math.min(I * 255, 255);
+        mainCtx.fillStyle = `rgba(${r},${g},${b},${I * 0.9})`;
+        mainCtx.fillRect(screenX - 30, py, 30, 1);
+    }
+
+    // 屏幕标签
+    mainCtx.fillStyle = '#90caf9';
+    mainCtx.font = '12px sans-serif';
+    mainCtx.fillText('观察屏', screenX - 20, H - 10);
+
+    // 距离L标注
+    mainCtx.strokeStyle = '#4caf50';
+    mainCtx.lineWidth = 1;
+    mainCtx.setLineDash([4, 4]);
+    mainCtx.beginPath();
+    mainCtx.moveTo(slitX + 15, H - 30);
+    mainCtx.lineTo(screenX - 35, H - 30);
+    mainCtx.stroke();
+    mainCtx.setLineDash([]);
+    mainCtx.fillStyle = '#4caf50';
+    mainCtx.fillText(`L = ${params.distance.toFixed(1)} m`, (slitX + screenX) / 2 - 30, H - 35);
+
+    // ===== 右侧：干涉条纹放大展示 =====
+    const stripeX = W * 0.5;
+    const stripeW = W * 0.42;
+    const stripeH = H * 0.5;
+    const stripeY = 20;
+
+    mainCtx.fillStyle = 'rgba(5, 8, 25, 0.9)';
+    mainCtx.fillRect(stripeX, stripeY, stripeW, stripeH);
+    mainCtx.strokeStyle = 'rgba(100,180,255,0.3)';
+    mainCtx.lineWidth = 1;
+    mainCtx.strokeRect(stripeX, stripeY, stripeW, stripeH);
+
+    mainCtx.fillStyle = '#64b5f6';
+    mainCtx.font = '13px sans-serif';
+    mainCtx.fillText('干涉条纹（放大）', stripeX + 10, stripeY + 22);
+
+    // 绘制条纹
+    const numSamples = stripeW;
+    const maxY = L * Math.tan(0.15); // 最大物理范围
+    for (let px = 0; px < numSamples; px++) {
+        const yPhysical = ((px / numSamples) - 0.5) * 2 * maxY;
+        const I = calcIntensity(yPhysical, L, d, a, lambda);
+
+        for (let py = 0; py < stripeH - 30; py++) {
+            const I2 = calcIntensity(
+                (((py) / (stripeH - 30)) - 0.5) * 2 * maxY,
+                L, d, a, lambda
+            );
+            const avgI = (I + I2) / 2;
+            mainCtx.fillStyle = `rgba(${r},${g},${b},${avgI * 0.85})`;
+            mainCtx.fillRect(stripeX + px, stripeY + 28 + py, 1, 1);
+        }
+    }
+}
+
+// ===== 绘制光强分布曲线 =====
+function drawIntensity() {
+    const W = intCanvas.width, H = intCanvas.height;
+    intCtx.clearRect(0, 0, W, H);
+
+    intCtx.fillStyle = 'rgba(10, 14, 39, 0.6)';
+    intCtx.fillRect(0, 0, W, H);
+    intCtx.strokeStyle = 'rgba(100,180,255,0.2)';
+    intCtx.strokeRect(10, 10, W - 20, H - 20);
+
+    const color = wavelengthToRGB(params.wavelength);
+    const lambda = params.wavelength * 1e-9;
+    const d = params.slitspace * 1e-6;
+    const a = params.slitwidth * 1e-6;
+    const L = params.distance;
+
+    const graphLeft = 60, graphRight = W - 20;
+    const graphTop = 20, graphBottom = H - 40;
+    const graphW = graphRight - graphLeft;
+    const graphH = graphBottom - graphTop;
+
+    const maxY = L * 0.1; // 显示范围
+
+    // 网格线
+    intCtx.strokeStyle = 'rgba(100,150,255,0.1)';
+    intCtx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = graphTop + (graphH / 4) * i;
+        intCtx.beginPath();
+        intCtx.moveTo(graphLeft, y);
+        intCtx.lineTo(graphRight, y);
+        intCtx.stroke();
+    }
+
+    // 坐标轴标签
+    intCtx.fillStyle = '#78909c';
+    intCtx.font = '11px sans-serif';
+    intCtx.fillText('光强 I', 10, graphTop + 15);
+    intCtx.fillText('0', graphLeft - 15, graphBottom + 15);
+    intCtx.fillText(`+${maxY.toFixed(3)}m`, graphRight - 40, graphTop + 15);
+    intCtx.fillText(`-${maxY.toFixed(3)}m`, graphRight - 45, graphBottom + 15);
+    intCtx.fillText('位置 y', graphRight - 30, graphBottom + 35);
+
+    // 绘制曲线
+    intCtx.beginPath();
+    intCtx.strokeStyle = color.css;
+    intCtx.lineWidth = 2;
+    intCtx.shadowBlur = 8;
+    intCtx.shadowColor = color.css;
+
+    const numPoints = 500;
+    for (let i = 0; i <= numPoints; i++) {
+        const px = graphLeft + (i / numPoints) * graphW;
+        const yPhysical = ((i / numPoints) - 0.5) * 2 * maxY;
+        const I = calcIntensity(yPhysical, L, d, a, lambda);
+        const py = graphBottom - I * graphH;
+        if (i === 0) intCtx.moveTo(px, py);
+        else intCtx.lineTo(px, py);
+    }
+    intCtx.stroke();
+    intCtx.shadowBlur = 0;
+
+    // 填充区域
+    intCtx.lineTo(graphRight, graphBottom);
+    intCtx.lineTo(graphLeft, graphBottom);
+    intCtx.closePath();
+    intCtx.fillStyle = `rgba(${color.r},${color.g},${color.b},0.15)`;
+    intCtx.fill();
+
+    // 标题
+    intCtx.fillStyle = '#e0e0e0';
+    intCtx.font = '14px sans-serif';
+    intCtx.fillText('光强分布曲线 I(y)', 20, H - 10);
+}
+
+// ===== 更新数据面板 =====
+function updateInfo() {
+    const lambda = params.wavelength * 1e-9;
+    const d = params.slitspace * 1e-6;
+    const a = params.slitwidth * 1e-6;
+    const L = params.distance;
+
+    // 条纹间距 Δy = λL/d
+    const deltaY = (lambda * L) / d;
+    // 中央明纹宽度（衍射包络） = 2λL/a
+    const centralWidth = 2 * lambda * L / a;
+    // 可见条纹数
+    const visibleCount = Math.floor(centralWidth / deltaY) * 2 + 1;
+
+    const color = wavelengthToRGB(params.wavelength);
+
+    document.getElementById('info-deltaY').textContent = (deltaY * 1000).toFixed(2) + ' mm';
+    document.getElementById('info-central').textContent = (centralWidth * 1000).toFixed(1) + ' mm';
+    document.getElementById('info-count').textContent = visibleCount + ' 条';
+    document.getElementById('info-color').innerHTML = `<span style="color:${color.css};">● ${params.wavelength}nm</span>`;
+}
+
+// ===== 事件绑定 =====
+function bindEvents() {
+    const sliders = ['wavelength', 'slitspace', 'slitwidth', 'distance'];
+    sliders.forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            params[id] = val;
+
+            // 更新显示值
+            const displayMap = {
+                wavelength: v => v,
+                slitspace: v => v,
+                slitwidth: v => v,
+                distance: v => v.toFixed(1)
+            };
+            document.getElementById('val-' + id).textContent = displayMap[id](val);
+
+            render();
+        });
+    });
+
+    document.getElementById('displayMode').addEventListener('change', (e) => {
+        params.mode = e.target.value;
+        render();
+    });
+}
+
+// ===== 渲染 =====
+function render() {
+    drawMain();
+    drawIntensity();
+    updateInfo();
+}
+
+// ===== 初始化 =====
+bindEvents();
+render();
+console.log('🔬 光迹 — 双缝干涉交互模拟系统 已启动');
+</script>
+</body>
+</html>
